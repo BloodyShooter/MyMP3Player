@@ -263,6 +263,29 @@ public class MainWindow extends Application {
 
         lstPlaylist = new ListView<>();
         lstPlaylist.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+
+        final ContextMenu menuOnListPlayList = new ContextMenu();
+
+        MenuItem addSong = new MenuItem("Добавить песню");
+        addSong.setOnAction((ActionEvent event) -> btnAddSongAction());
+
+        MenuItem deleteSong = new MenuItem("Удалить песню");
+        deleteSong.setOnAction((ActionEvent event) -> btnDeleteSongAction());
+
+        MenuItem openPls = new MenuItem("Открыть плейлист");
+        openPls.setOnAction((ActionEvent event) -> menuOpenAction());
+
+        MenuItem clearPls = new MenuItem("Очистить плейлист");
+        clearPls.setOnAction((ActionEvent event) -> items.clear());
+
+        menuOnListPlayList.getItems().addAll(
+                addSong,
+                deleteSong,
+                openPls,
+                clearPls
+        );
+
+        lstPlaylist.setContextMenu(menuOnListPlayList);
         items = FXCollections.observableArrayList();
         lstPlaylist.setItems(items);
 
@@ -361,7 +384,8 @@ public class MainWindow extends Application {
         if (list != null) {
             for (File file : list) {
                 MP3 mp3 = new MP3(file.getName(), file.getPath());
-                items.add(mp3);
+                if (!items.contains(mp3))
+                    items.add(mp3);
             }
         }
     }
