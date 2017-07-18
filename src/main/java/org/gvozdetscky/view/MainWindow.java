@@ -5,6 +5,7 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -13,11 +14,20 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import org.gvozdetscky.model.MP3;
+import org.gvozdetscky.utils.MyUtils;
+
+import javax.swing.*;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by Egor on 17.07.2017.
@@ -30,6 +40,13 @@ public class MainWindow extends Application {
     private static final int WIDTH = 344;
     private static final int HEIGHT = 594;
 
+    private final FileChooser fileChooser = new FileChooser();
+    private ObservableList<MP3> items;
+    private ListView<MP3> lstPlaylist;
+    private TextField txtSearch;
+
+    private Stage myStage;
+
     /**
      * Метод запуска окна.
      * @param args - параметры при запуске приложения
@@ -39,6 +56,7 @@ public class MainWindow extends Application {
     }
 
     public void start(Stage myStage) throws Exception {
+        this.myStage = myStage;
 
         myStage.setScene(new Scene(initAndGetComp(), WIDTH, HEIGHT));
 
@@ -79,18 +97,55 @@ public class MainWindow extends Application {
 
         Menu file = new Menu("Файл");
 
-        MenuItem exit = new MenuItem("Выход");
+        MenuItem exit = new MenuItem("Выход",
+                new ImageView(new Image("/images/exit.png")));
+        exit.setAccelerator(KeyCombination.keyCombination("Ctrl+E"));
         exit.setOnAction(event -> Platform.exit());
 
-        MenuItem open = new MenuItem("Открыть плейлист");
+        MenuItem open = new MenuItem("Открыть плейлист",
+                new ImageView(new Image("/images/open-icon.png")));
+        open.setAccelerator(KeyCombination.keyCombination("Ctrl+O"));
+        open.setOnAction(event -> menuOpenAction());
 
-        MenuItem save = new MenuItem("Сохранить плейлист");
+        MenuItem save = new MenuItem("Сохранить плейлист",
+                new ImageView(new Image("/images/save_16.png")));
+        save.setAccelerator(KeyCombination.keyCombination("Ctrl+S"));
+        save.setOnAction(event -> menuSaveAction());
 
         file.getItems().addAll(open, save, new SeparatorMenuItem(), exit);
 
         menuBar.getMenus().add(file);
 
         return menuBar;
+    }
+
+    private void menuSaveAction() {
+        fileChooser.setTitle("Сохранение плейлиста");
+        fileChooser.getExtensionFilters().clear();
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Файлы плейлиста", "*.pls")
+        );
+        File file = fileChooser.showSaveDialog(myStage);
+
+        if (file != null) {
+            MyUtils.serialize(items, file.getPath());
+        }
+    }
+
+    private void menuOpenAction() {
+        fileChooser.setTitle("Открытие плейлиста");
+        fileChooser.getExtensionFilters().clear();
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Файлы плейлиста", "*.pls")
+        );
+
+        File file = fileChooser.showOpenDialog(myStage);
+
+        if (file != null) {
+            items.clear();
+            List<MP3> items = MyUtils.deserialize(file.getPath());
+            this.items.addAll(items);
+        }
     }
 
     /**
@@ -100,18 +155,45 @@ public class MainWindow extends Application {
     private Parent getFirstLevel() {
         FlowPane firstLevel = new FlowPane(10, 10);
 
-        TextField txtSearch = new TextField();
+        txtSearch = new TextField();
         txtSearch.setPrefColumnCount(20);
         txtSearch.setPromptText("Введите имя для поиска");
         txtSearch.setTooltip(new Tooltip("Введите имя файла для поиска"));
         Button btnSearch = new Button("ПОИСК",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/search_16.png"))));
+        btnSearch.setOnAction((ActionEvent event) -> btnSearchAction());
 
         firstLevel.getChildren().addAll(txtSearch, btnSearch);
 
         firstLevel.setAlignment(Pos.CENTER);
 
         return firstLevel;
+    }
+
+    private void btnSearchAction() {
+        final String text = txtSearch.getText();
+
+        if (text == null || text.trim().equals("")) return;
+
+        List<Integer> itemIndexes = new ArrayList<>();
+
+        for (MP3 item: this.items) {
+            if (item.getName().toUpperCase().contains(text.toUpperCase())) {
+                itemIndexes.add(this.items.indexOf(item));
+            }
+        }
+
+        if (itemIndexes.size() == 0) {
+            JOptionPane.showMessageDialog(null, "Поиск по строке \'" + text + "\' не дал результатов");
+            txtSearch.requestFocus();
+            txtSearch.selectAll();
+            return;
+        }
+
+        lstPlaylist.getSelectionModel().clearSelection();
+        for (Integer integer: itemIndexes) {
+            lstPlaylist.getSelectionModel().select(integer);
+        }
     }
 
     /**
@@ -125,30 +207,43 @@ public class MainWindow extends Application {
         Button btnPlay = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/Play.png"))));
         btnPlay.setTooltip(new Tooltip("Произвести"));
+        btnPlay.setOnAction((ActionEvent event) -> btnPlayAction());
+
         Button btnPause = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/Pause-icon.png"))));
         btnPause.setTooltip(new Tooltip("Поставить на паузу"));
+
         Button btnStop = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/stop-red-icon.png"))));
         btnStop.setTooltip(new Tooltip("Останвить"));
+
         Button btnPrev = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/prev-icon.png"))));
         btnPrev.setTooltip(new Tooltip("Предыдущая"));
+
         Button btnNext = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/next-icon.png"))));
         btnNext.setTooltip(new Tooltip("Следующая"));
+
         Button btnAddSong = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/plus_16.png"))));
         btnAddSong.setTooltip(new Tooltip("Добавить песню"));
+        btnAddSong.setOnAction((ActionEvent event) -> btnAddSongAction());
+
         Button btnDeleteSong = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/remove_icon.png"))));
         btnDeleteSong.setTooltip(new Tooltip("Удалить песню"));
+        btnDeleteSong.setOnAction((ActionEvent event) -> btnDeleteSongAction());
+
         Button btnSelectPrev = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/arrow-up-icon.png"))));
         btnSelectPrev.setTooltip(new Tooltip("Выделить предыдущую песню"));
+        btnSelectPrev.setOnAction((ActionEvent event) -> btnSelectPrevAction());
+
         Button btnSelectNext = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/arrow-down-icon.png"))));
         btnSelectNext.setTooltip(new Tooltip("Выделить следующию песню"));
+        btnSelectNext.setOnAction((ActionEvent event) -> btnSelectNextAction());
 
         ToggleButton tglBtnMute = new ToggleButton();
         final Image unselected = new Image(getClass().getResourceAsStream(
@@ -166,9 +261,9 @@ public class MainWindow extends Application {
         );
         tglBtnMute.setTooltip(new Tooltip("Звук квл/выкл"));
 
-        ListView<String> lstPlaylist = new ListView<>();
-        ObservableList<String> items = FXCollections.observableArrayList(
-                "Song1", "Song2", "Song3", "Song4");
+        lstPlaylist = new ListView<>();
+        lstPlaylist.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        items = FXCollections.observableArrayList();
         lstPlaylist.setItems(items);
 
         ScrollPane scrollPane = new ScrollPane(lstPlaylist);
@@ -223,5 +318,51 @@ public class MainWindow extends Application {
         secondLevel.setAlignment(Pos.CENTER);
 
         return secondLevel;
+    }
+
+    private void btnPlayAction() {
+        MP3 selectedItem = lstPlaylist.getSelectionModel().getSelectedItem();
+        System.out.println(selectedItem.getPath());
+    }
+
+    private void btnSelectNextAction() {
+        int selectedNextIndex = lstPlaylist.getSelectionModel().getSelectedIndex() + 1;
+        if (selectedNextIndex <= items.size() - 1)
+            Platform.runLater(() -> {
+                lstPlaylist.getSelectionModel().clearSelection();
+                lstPlaylist.getSelectionModel().select(selectedNextIndex);
+            });
+    }
+
+    private void btnSelectPrevAction() {
+        int selectedPrevIndex = lstPlaylist.getSelectionModel().getSelectedIndex() - 1;
+        if (selectedPrevIndex >= 0)
+            Platform.runLater(() -> {
+                lstPlaylist.getSelectionModel().clearSelection();
+                lstPlaylist.getSelectionModel().select(selectedPrevIndex);
+            });
+    }
+
+    private void btnDeleteSongAction() {
+        ObservableList<MP3> selectedList = lstPlaylist.getSelectionModel().getSelectedItems();
+        if (!selectedList.isEmpty()) {
+            items.removeAll(selectedList);
+        }
+    }
+
+    private void btnAddSongAction() {
+        fileChooser.setTitle("Выбор файлов");
+        fileChooser.getExtensionFilters().clear();
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("MP3", "*.mp3")
+        );
+        List<File> list =
+                fileChooser.showOpenMultipleDialog(myStage);
+        if (list != null) {
+            for (File file : list) {
+                MP3 mp3 = new MP3(file.getName(), file.getPath());
+                items.add(mp3);
+            }
+        }
     }
 }

@@ -1,7 +1,4 @@
-.idea/*
-target/*
 .idea/
 MyMP3Player.iml
-src/main/resources/
 src/test/
 target/
