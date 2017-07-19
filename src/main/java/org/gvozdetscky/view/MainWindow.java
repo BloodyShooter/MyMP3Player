@@ -2,10 +2,13 @@ package org.gvozdetscky.view;
 
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.InvalidationListener;
+import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -14,6 +17,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.InputMethodEvent;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
@@ -22,6 +26,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.gvozdetscky.model.MP3;
+import org.gvozdetscky.model.MP3Player;
 import org.gvozdetscky.utils.MyUtils;
 
 import javax.swing.*;
@@ -41,9 +46,12 @@ public class MainWindow extends Application {
     private static final int HEIGHT = 594;
 
     private final FileChooser fileChooser = new FileChooser();
+    private final MP3Player player = new MP3Player();
     private ObservableList<MP3> items;
     private ListView<MP3> lstPlaylist;
     private TextField txtSearch;
+    private Slider slider;
+    private ToggleButton tglBtnMute;
 
     private Stage myStage;
 
@@ -63,6 +71,12 @@ public class MainWindow extends Application {
         myStage.setTitle(NAME_APPLICATION);
         myStage.setResizable(false);
         myStage.show();
+    }
+
+    @Override
+    public void stop() throws Exception {
+        player.stop();
+        super.stop();
     }
 
     /**
@@ -159,7 +173,7 @@ public class MainWindow extends Application {
         txtSearch.setPrefColumnCount(20);
         txtSearch.setPromptText("Введите имя для поиска");
         txtSearch.setTooltip(new Tooltip("Введите имя файла для поиска"));
-        Button btnSearch = new Button("ПОИСК",
+        Button btnSearch = new Button("Поиск",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/search_16.png"))));
         btnSearch.setOnAction((ActionEvent event) -> btnSearchAction());
 
@@ -212,10 +226,12 @@ public class MainWindow extends Application {
         Button btnPause = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/Pause-icon.png"))));
         btnPause.setTooltip(new Tooltip("Поставить на паузу"));
+        btnPause.setOnAction((ActionEvent event) -> btnPauseAction());
 
         Button btnStop = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/stop-red-icon.png"))));
         btnStop.setTooltip(new Tooltip("Останвить"));
+        btnStop.setOnAction((ActionEvent event) -> btnStopAction());
 
         Button btnPrev = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/prev-icon.png"))));
@@ -245,7 +261,7 @@ public class MainWindow extends Application {
         btnSelectNext.setTooltip(new Tooltip("Выделить следующию песню"));
         btnSelectNext.setOnAction((ActionEvent event) -> btnSelectNextAction());
 
-        ToggleButton tglBtnMute = new ToggleButton();
+        tglBtnMute = new ToggleButton();
         final Image unselected = new Image(getClass().getResourceAsStream(
                 "/images/speaker.png"
         ));
@@ -291,12 +307,19 @@ public class MainWindow extends Application {
 
         ScrollPane scrollPane = new ScrollPane(lstPlaylist);
         lstPlaylist.setPrefSize(WIDTH - 20, HEIGHT - 200);
+        lstPlaylist.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2) {
+                    btnPlayAction();
+                }
+        });
 
-        Slider slider = new Slider();
+        slider = new Slider();
         slider.setMin(0);
-        slider.setMax(100);
+        slider.setMax(200);
+        slider.setMinorTickCount(5);
         slider.setValue(100);
         slider.setPrefWidth(WIDTH - 70);
+        slider.valueProperty().addListener(observable -> slideVolumeStateChanged());
 
         Separator separator = new Separator();
         separator.setOrientation(Orientation.VERTICAL);
@@ -345,7 +368,26 @@ public class MainWindow extends Application {
 
     private void btnPlayAction() {
         MP3 selectedItem = lstPlaylist.getSelectionModel().getSelectedItem();
-        System.out.println(selectedItem.getPath());
+        player.play(selectedItem.getPath());
+        player.setVolume(slider.getValue(), slider.getMax());
+    }
+
+    private void btnStopAction() {
+        player.stop();
+    }
+
+    private void btnPauseAction() {
+        player.pause();
+    }
+
+    private void slideVolumeStateChanged() {
+        player.setVolume(slider.getValue(), slider.getMax());
+
+        if (slider.getValue() == 0) {
+            tglBtnMute.setSelected(true);
+        } else {
+            tglBtnMute.setSelected(false);
+        }
     }
 
     private void btnSelectNextAction() {
