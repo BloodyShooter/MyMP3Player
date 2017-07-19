@@ -7,6 +7,8 @@ import java.io.File;
 
 /**
  * Created by Egor on 19.07.2017.
+ *
+ * Это есть наш плеер, который предназначен для управления воспроизведением музыки.
  */
 public class MP3Player {
 

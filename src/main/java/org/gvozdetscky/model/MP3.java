@@ -4,6 +4,8 @@ import java.io.Serializable;
 
 /**
  * Created by Egor on 18.07.2017.
+ *
+ * POJO класс, описывает структуру нашей песни в приложении.
  */
 public class MP3 implements Serializable {
 

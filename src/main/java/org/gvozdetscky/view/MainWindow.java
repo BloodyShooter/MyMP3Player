@@ -2,9 +2,9 @@ package org.gvozdetscky.view;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.InvalidationListener;
-import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -17,7 +17,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.InputMethodEvent;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
@@ -25,6 +24,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javazoom.jlgui.basicplayer.BasicController;
+import javazoom.jlgui.basicplayer.BasicPlayerEvent;
+import javazoom.jlgui.basicplayer.BasicPlayerListener;
 import org.gvozdetscky.model.MP3;
 import org.gvozdetscky.model.MP3Player;
 import org.gvozdetscky.utils.MyUtils;
@@ -33,13 +35,18 @@ import javax.swing.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by Egor on 17.07.2017.
  *
  * Main window application
  */
-public class MainWindow extends Application {
+public class MainWindow extends Application implements BasicPlayerListener {
+
+    private long duration;
+    private int bytesLen;
+    private String songName;
 
     private static final String NAME_APPLICATION = "MP3Player";
     private static final int WIDTH = 344;
@@ -50,7 +57,9 @@ public class MainWindow extends Application {
     private ObservableList<MP3> items;
     private ListView<MP3> lstPlaylist;
     private TextField txtSearch;
+    private Slider sliderVolume;
     private Slider slider;
+    private Label lblCurrentSong;
     private ToggleButton tglBtnMute;
 
     private Stage myStage;
@@ -236,10 +245,12 @@ public class MainWindow extends Application {
         Button btnPrev = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/prev-icon.png"))));
         btnPrev.setTooltip(new Tooltip("Предыдущая"));
+        btnPrev.setOnAction((ActionEvent event) -> btnPrevPlayAction());
 
         Button btnNext = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/next-icon.png"))));
         btnNext.setTooltip(new Tooltip("Следующая"));
+        btnNext.setOnAction((ActionEvent event) -> btnNextPlaygAction());
 
         Button btnAddSong = new Button("",
                 new ImageView(new Image(getClass().getResourceAsStream("/images/plus_16.png"))));
@@ -276,6 +287,7 @@ public class MainWindow extends Application {
                 .otherwise(unselected)
         );
         tglBtnMute.setTooltip(new Tooltip("Звук квл/выкл"));
+        tglBtnMute.setOnAction(event -> tglBtnMuteAction());
 
         lstPlaylist = new ListView<>();
         lstPlaylist.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -306,20 +318,31 @@ public class MainWindow extends Application {
         lstPlaylist.setItems(items);
 
         ScrollPane scrollPane = new ScrollPane(lstPlaylist);
-        lstPlaylist.setPrefSize(WIDTH - 20, HEIGHT - 200);
+        lstPlaylist.setPrefSize(WIDTH - 20, HEIGHT - 240);
         lstPlaylist.setOnMouseClicked(event -> {
                 if (event.getClickCount() == 2) {
                     btnPlayAction();
                 }
         });
 
+        sliderVolume = new Slider();
+        sliderVolume.setMin(0);
+        sliderVolume.setMax(200);
+        sliderVolume.setMinorTickCount(5);
+        sliderVolume.setValue(100);
+        sliderVolume.setPrefWidth(WIDTH - 70);
+        sliderVolume.valueProperty().addListener(observable -> slideVolumeStateChanged());
+
         slider = new Slider();
         slider.setMin(0);
         slider.setMax(200);
         slider.setMinorTickCount(5);
-        slider.setValue(100);
+        slider.setValue(0);
         slider.setPrefWidth(WIDTH - 70);
-        slider.valueProperty().addListener(observable -> slideVolumeStateChanged());
+        //slider.valueProperty().addListener(observable -> slideVolumeStateChanged());
+
+        lblCurrentSong = new Label();
+        lblCurrentSong.setText("...");
 
         Separator separator = new Separator();
         separator.setOrientation(Orientation.VERTICAL);
@@ -338,7 +361,7 @@ public class MainWindow extends Application {
         thirdContainerLevel.setAlignment(Pos.CENTER);
         thirdContainerLevel.getChildren().addAll(
                 tglBtnMute,
-                slider
+                sliderVolume
         );
 
         HBox fourthContainerLevel = new HBox(10);
@@ -356,6 +379,8 @@ public class MainWindow extends Application {
         container.getChildren().addAll(
                 firstContainerLevel,
                 scrollPane,
+                lblCurrentSong,
+                slider,
                 thirdContainerLevel,
                 fourthContainerLevel
         );
@@ -366,10 +391,39 @@ public class MainWindow extends Application {
         return secondLevel;
     }
 
+    private void tglBtnMuteAction() {
+        if (tglBtnMute.isSelected()) {
+            player.setVolume(0, sliderVolume.getMax());
+        } else {
+            player.setVolume(sliderVolume.getValue(), sliderVolume.getMax());
+        }
+    }
+
+    private void btnNextPlaygAction() {
+        int selectedNextIndex = lstPlaylist.getSelectionModel().getSelectedIndex() + 1;
+        if (selectedNextIndex <= items.size() - 1) {
+            Platform.runLater(() -> playSongOnSelectIndex(selectedNextIndex));
+        }
+    }
+
+    private void btnPrevPlayAction() {
+        int selectedPrevIndex = lstPlaylist.getSelectionModel().getSelectedIndex() - 1;
+        if (selectedPrevIndex >= 0)
+            Platform.runLater(() -> playSongOnSelectIndex(selectedPrevIndex));
+    }
+
+    private void playSongOnSelectIndex(int selectedPrevIndex) {
+        lstPlaylist.getSelectionModel().clearSelection();
+        lstPlaylist.getSelectionModel().select(selectedPrevIndex);
+        MP3 selectedItem = lstPlaylist.getSelectionModel().getSelectedItem();
+        player.play(selectedItem.getPath());
+        player.setVolume(sliderVolume.getValue(), sliderVolume.getMax());
+    }
+
     private void btnPlayAction() {
         MP3 selectedItem = lstPlaylist.getSelectionModel().getSelectedItem();
         player.play(selectedItem.getPath());
-        player.setVolume(slider.getValue(), slider.getMax());
+        player.setVolume(sliderVolume.getValue(), sliderVolume.getMax());
     }
 
     private void btnStopAction() {
@@ -381,9 +435,9 @@ public class MainWindow extends Application {
     }
 
     private void slideVolumeStateChanged() {
-        player.setVolume(slider.getValue(), slider.getMax());
+        player.setVolume(sliderVolume.getValue(), sliderVolume.getMax());
 
-        if (slider.getValue() == 0) {
+        if (sliderVolume.getValue() == 0) {
             tglBtnMute.setSelected(true);
         } else {
             tglBtnMute.setSelected(false);
@@ -430,5 +484,35 @@ public class MainWindow extends Application {
                     items.add(mp3);
             }
         }
+    }
+
+    @Override
+    public void opened(Object o, Map map) {
+        duration = (long) Math.round((Long) map.get("duration") / 1000000);
+        bytesLen = Math.round((Integer) map.get("mp3.length.bytes"));
+
+        songName = map.get("title") != null ? map.get("title").toString(): new File(o.toString()).getName();
+
+        if (songName.length() > 30) {
+            songName = songName.substring(0, 30) + "...";
+        }
+
+        Platform.runLater(() -> lblCurrentSong.setText(songName));
+        System.out.println("dsgsdg");
+    }
+
+    @Override
+    public void progress(int i, long l, byte[] bytes, Map map) {
+
+    }
+
+    @Override
+    public void stateUpdated(BasicPlayerEvent basicPlayerEvent) {
+
+    }
+
+    @Override
+    public void setController(BasicController basicController) {
+
     }
 }
